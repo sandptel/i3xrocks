@@ -1,6 +1,6 @@
 /*
  * block.c - update of a single status line block
- * Copyright (C) 2014  Vivien Didelot
+ * Copyright (C) 2014-2019  Vivien Didelot
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -20,6 +20,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "bar.h"
 #include "block.h"
 #include "json.h"
 #include "line.h"
@@ -36,7 +37,7 @@ int block_set(struct block *block, const char *key, const char *value)
 	return map_set(block->env, key, value);
 }
 
-static int block_reset(struct block *block)
+int block_reset(struct block *block)
 {
 	map_clear(block->env);
 
@@ -88,27 +89,6 @@ static int block_child_env(struct block *block)
 	return block_for_each(block, block_setenv, NULL);
 }
 
-static int block_update_raw(char *line, size_t num, void *data)
-{
-	struct block *block = data;
-	static const char * const keys[] = {
-		"full_text",
-		"short_text",
-		"color",
-		"background",
-	};
-	const char *key;
-
-	if (num >= sizeof(keys) / sizeof(keys[0])) {
-		block_error(block, "too much lines for raw update");
-		return -EINVAL;
-	}
-
-	key = keys[num];
-
-	return block_set(block, key, line);
-}
-
 static int block_stdout(struct block *block)
 {
 	const char *label, *full_text;
@@ -125,7 +105,7 @@ static int block_stdout(struct block *block)
 	if (block->format == FORMAT_JSON)
 		err = json_read(out, count, block->env);
 	else
-		err = line_read(out, count, block_update_raw, block);
+		err = i3bar_read(out, count, block->env);
 
 	if (err && err != -EAGAIN)
 		return err;
@@ -189,9 +169,13 @@ static int block_send_key(const char *key, const char *value, void *data)
 
 static int block_send_json(struct block *block)
 {
+	int err;
+
 	dprintf(block->in[1], "{\"\":\"\"");
-	block_for_each(block, block_send_key, block);
+	err = block_for_each(block, block_send_key, block);
 	dprintf(block->in[1], "}\n");
+
+	return err;
 }
 
 /* Push data to forked process through the open stdin pipe */
@@ -205,14 +189,14 @@ static int block_send(struct block *block)
 	}
 
 	if (!block_is_spawned(block)) {
-		block_debug(block, "process not spawned");
+		block_error(block, "persistent block not spawned");
 		return 0;
 	}
 
 	if (block->format == FORMAT_JSON)
-		block_send_json(block);
-	else
-		dprintf(block->in[1], "%s\n", button);
+		return block_send_json(block);
+
+	dprintf(block->in[1], "%s\n", button);
 
 	return 0;
 }
@@ -295,21 +279,6 @@ static int block_child_stdout(struct block *block)
 	return sys_close(block->out[1]);
 }
 
-static int block_child_stderr(struct block *block)
-{
-	int err;
-
-	err = sys_close(block->err[0]);
-	if (err)
-		return err;
-
-	err = sys_dup(block->err[1], STDERR_FILENO);
-	if (err)
-		return err;
-
-	return sys_close(block->err[1]);
-}
-
 static int block_child_exec(struct block *block)
 {
 	return sys_execsh(block->command);
@@ -319,7 +288,6 @@ static int block_child(struct block *block)
 {
 	int err;
 
-	/* Error messages are merged into the parent's stderr... */
 	err = block_child_env(block);
 	if (err)
 		return err;
@@ -336,11 +304,6 @@ static int block_child(struct block *block)
 	if (err)
 		return err;
 
-	err = block_child_stderr(block);
-	if (err)
-		return err;
-
-	/* ... until here */
 	return block_child_exec(block);
 }
 
@@ -368,12 +331,6 @@ static int block_parent_stdout(struct block *block)
 	return 0;
 }
 
-static int block_parent_stderr(struct block *block)
-{
-	/* Close write end of stderr pipe */
-	return sys_close(block->err[1]);
-}
-
 static int block_parent(struct block *block)
 {
 	int err;
@@ -383,10 +340,6 @@ static int block_parent(struct block *block)
 		return err;
 
 	err = block_parent_stdout(block);
-	if (err)
-		return err;
-
-	err = block_parent_stderr(block);
 	if (err)
 		return err;
 
@@ -415,10 +368,6 @@ static int block_fork(struct block *block)
 static int block_open(struct block *block)
 {
 	int err;
-
-	err = sys_pipe(block->err);
-	if (err)
-		return err;
 
 	err = sys_pipe(block->out);
 	if (err)
@@ -493,32 +442,6 @@ void block_close(struct block *block)
 		block_error(block, "failed to close stdout");
 
 	block->out[0] = -1;
-
-	err = sys_close(block->err[0]);
-	if (err)
-		block_error(block, "failed to close stderr");
-
-	block->err[0] = -1;
-}
-
-static int block_stderr_line(char *line, size_t num, void *data)
-{
-	struct block *block = data;
-
-	block_debug(block, "&stderr:%02d: %s", num, line);
-
-	return 0;
-}
-
-static int block_stderr(struct block *block)
-{
-	int err;
-
-	err = line_read(block->err[0], -1, block_stderr_line, block);
-	if (err && err != -EAGAIN)
-		return err;
-
-	return 0;
 }
 
 int block_reap(struct block *block)
@@ -533,10 +456,6 @@ int block_reap(struct block *block)
 		block_error(block, "Internal error");
 		return err;
 	}
-
-	err = block_stderr(block);
-	if (err)
-		return err;
 
 	switch (block->code) {
 	case 0:
@@ -559,17 +478,15 @@ int block_reap(struct block *block)
 	return 0;
 }
 
-int block_setup(struct block *block)
+static int i3blocks_setup(struct block *block)
 {
-	const struct map *config = block->config;
 	const char *value;
-	int err;
 
-	value = map_get(config, "command");
+	value = map_get(block->config, "command");
 	if (value && *value != '\0')
 		block->command = value;
 
-	value = map_get(config, "interval");
+	value = map_get(block->config, "interval");
 	if (!value)
 		block->interval = 0;
 	else if (strcmp(value, "once") == 0)
@@ -581,21 +498,32 @@ int block_setup(struct block *block)
 	else
 		block->interval = atoi(value);
 
-	value = map_get(config, "format");
+	value = map_get(block->config, "format");
 	if (value && strcmp(value, "json") == 0)
 		block->format = FORMAT_JSON;
 	else
 		block->format = FORMAT_RAW;
 
-	value = map_get(config, "signal");
+	value = map_get(block->config, "signal");
 	if (!value)
 		block->signal = 0;
 	else
 		block->signal = atoi(value);
 
-	block->env = map_create();
-	if (!block->env)
-		return -ENOMEM;
+	return 0;
+}
+
+int block_setup(struct block *block)
+{
+	int err;
+
+	err = i3bar_setup(block);
+	if (err)
+		return err;
+
+	err = i3blocks_setup(block);
+	if (err)
+		return err;
 
 	err = block_reset(block);
 	if (err)
@@ -604,4 +532,64 @@ int block_setup(struct block *block)
 	block_debug(block, "new block");
 
 	return 0;
+}
+
+void block_destroy(struct block *block)
+{
+	map_destroy(block->config);
+	map_destroy(block->env);
+	free(block->name);
+	free(block);
+}
+
+struct block *block_create(struct bar *bar, const struct map *config)
+{
+	struct block *block;
+	int err;
+
+	block = calloc(1, sizeof(struct block));
+	if (!block)
+		return NULL;
+
+	block->bar = bar;
+
+	block->config = map_create();
+	if (!block->config) {
+		block_destroy(block);
+		return NULL;
+	}
+
+	if (config) {
+		err = map_copy(block->config, config);
+		if (err) {
+			block_destroy(block);
+			return NULL;
+		}
+	}
+
+	block->env = map_create();
+	if (!block->env) {
+		block_destroy(block);
+		return NULL;
+	}
+
+	return block;
+}
+
+void block_printf(struct block *block, int lvl, const char *fmt, ...)
+{
+	char buf[BUFSIZ];
+	va_list ap;
+	int err;
+
+	if (lvl > log_level)
+		return;
+
+	va_start(ap, fmt);
+	vsnprintf(buf, sizeof(buf), fmt, ap);
+	va_end(ap);
+
+	err = i3bar_printf(block, lvl, buf);
+	if (err)
+		fatal("failed to format message for block %s: %s", block->name, buf);
 }

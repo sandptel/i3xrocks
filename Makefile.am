@@ -7,6 +7,7 @@ i3xrocks_SOURCES = \
 	block.h \
 	config.c \
 	config.h \
+	i3bar.c \
 	ini.c \
 	ini.h \
 	json.c \
@@ -17,7 +18,23 @@ i3xrocks_SOURCES = \
 	main.c \
 	map.c \
 	map.h \
-	sched.c \
-	sched.h \
 	sys.c \
-	sys.h
+	sys.h \
+	term.h
+
+dist_man1_MANS = \
+	docs/i3blocks.1
+
+dist_sysconf_DATA = \
+	i3blocks.conf
+
+if ENABLE_BASH_COMPLETION
+bashcompletiondir = $(BASH_COMPLETION_DIR)
+bashcompletion_DATA = bash-completion
+
+install-data-local:
+	( cd '$(DESTDIR)$(BASH_COMPLETION_DIR)' && mv bash-completion i3blocks )
+
+uninstall-local:
+	( cd '$(DESTDIR)$(BASH_COMPLETION_DIR)' && rm -rf i3blocks )
+endif
