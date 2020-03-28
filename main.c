@@ -34,14 +34,18 @@ int main(int argc, char *argv[])
 {
 	char *output = NULL;
 	char *path = NULL;
+	char *conf_dir = NULL;
 	bool term;
 	int c;
 
-	while (c = getopt(argc, argv, "c:o:vhV"), c != -1) {
+	while (c = getopt(argc, argv, "c:o:d:vhV"), c != -1) {
 		switch (c) {
 		case 'c':
 			path = optarg;
 			break;
+		case 'd':
+			conf_dir = optarg;
+			break;			
 		case 'o':
 			output = optarg;
 			break;
@@ -49,7 +53,7 @@ int main(int argc, char *argv[])
 			log_level++;
 			break;
 		case 'h':
-			printf("Usage: %s [-c <configfile>] [-o <output>] [-v] [-h] [-V]\n", argv[0]);
+			printf("Usage: %s [-c <configfile>] [-d <conf.d dir>] [-o <output>] [-v] [-h] [-V]\n", argv[0]);
 			return EXIT_SUCCESS;
 		case 'V':
 			printf(PACKAGE_STRING " © 2014-2019 Vivien Didelot and contributors\n");
@@ -64,7 +68,7 @@ int main(int argc, char *argv[])
 	if (output)
 		term = !strcmp(output, "term");
 
-	if (bar_init(term, path))
+	if (bar_init(term, path, conf_dir))
 		return EXIT_FAILURE;
 
 	return EXIT_SUCCESS;

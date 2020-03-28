@@ -453,16 +453,20 @@ static int bar_config_cb(struct map *map, void *data)
 	return 0;
 }
 
-static void bar_load(struct bar *bar, const char *path)
+static void bar_load(struct bar *bar, const char *path, const char *conf_dir)
 {
 	int err;
 
-	err = config_load(path, bar_config_cb, bar);
+	if (path) 
+		err = config_load(path, bar_config_cb, bar);
+	else if (conf_dir) 
+		err = config_dir_load(conf_dir, bar_config_cb, bar);
+
 	if (err)
 		bar_fatal(bar, "Failed to load configuration file %s", path);
 }
 
-int bar_init(bool term, const char *path)
+int bar_init(bool term, const char *path, const char *conf_dir)
 {
 	struct bar *bar;
 	int err;
@@ -471,7 +475,7 @@ int bar_init(bool term, const char *path)
 	if (!bar)
 		return -ENOMEM;
 
-	bar_load(bar, path);
+	bar_load(bar, path, conf_dir);
 
 	err = bar_poll(bar);
 

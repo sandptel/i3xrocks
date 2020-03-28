@@ -19,6 +19,7 @@
 #include <limits.h>
 #include <stdbool.h>
 #include <stdlib.h>
+#include <dirent.h>
 
 #include "config.h"
 #include "ini.h"
@@ -192,4 +193,39 @@ int config_load(const char *path, config_cb_t *cb, void *data)
 
 	snprintf(buf, sizeof(buf), "%s/i3xrocks.conf", SYSCONFDIR);
 	return config_open(&conf, buf);
+}
+
+int config_dir_load(const char *path, config_cb_t *cb, void *data)
+{
+	struct config conf = {
+		.data = data,
+		.cb = cb,
+	};
+	char buf[PATH_MAX];
+	int err;
+
+	DIR *folder;
+    struct dirent *entry;
+    int files = 0;
+
+    folder = opendir(path);
+    if(folder == NULL)
+    {
+        perror("Unable to read directory");
+        return(1);
+    }
+
+    while( (entry=readdir(folder)) )
+    {
+        files++;
+        printf("File %3d: %s, %d\n",
+                files,
+                entry->d_name,
+                entry->d_type
+              );
+    }
+
+    closedir(folder);
+
+    return 1;
 }
