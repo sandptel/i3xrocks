@@ -453,20 +453,30 @@ static int bar_config_cb(struct map *map, void *data)
 	return 0;
 }
 
-static void bar_load(struct bar *bar, const char *path, const char *conf_dir)
+static void bar_load(struct bar *bar, const char *path, const char *conf_dir, const char *user_conf_dir)
 {
 	int err;
 
-	if (path) 
+	if (path) {
+		debug("Loading config from file %s", path);
 		err = config_load(path, bar_config_cb, bar);
-	else if (conf_dir) 
-		err = config_dir_load(conf_dir, bar_config_cb, bar);
+	} else if (conf_dir || user_conf_dir) {
+		if (user_conf_dir) {
+			debug("Loading config from user directory %s", user_conf_dir);
+			err = config_dir_load(user_conf_dir, bar_config_cb, bar);
+		}
+
+		if ((err && user_conf_dir && conf_dir) || conf_dir) {
+			debug("Loading config from directory %s", conf_dir);
+			err = config_dir_load(conf_dir, bar_config_cb, bar);
+		}
+	}
 
 	if (err)
-		bar_fatal(bar, "Failed to load configuration file %s", path);
+		bar_fatal(bar, "Failed to load configuration.");
 }
 
-int bar_init(bool term, const char *path, const char *conf_dir)
+int bar_init(bool term, const char *path, const char *conf_dir, const char *user_conf_dir)
 {
 	struct bar *bar;
 	int err;
@@ -475,7 +485,7 @@ int bar_init(bool term, const char *path, const char *conf_dir)
 	if (!bar)
 		return -ENOMEM;
 
-	bar_load(bar, path, conf_dir);
+	bar_load(bar, path, conf_dir, user_conf_dir);
 
 	err = bar_poll(bar);
 

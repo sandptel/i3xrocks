@@ -57,7 +57,7 @@ struct bar {
 		bar_printf(bar, LOG_DEBUG, "Debug: " fmt, ##__VA_ARGS__); \
 	} while (0)
 
-int bar_init(bool term, const char *path);
+int bar_init(bool term, const char *path, const char *conf_dir, const char *user_conf_dir);
 
 struct map;
 

@@ -23,5 +23,6 @@
 
 typedef int config_cb_t(struct map *map, void *data);
 int config_load(const char *path, config_cb_t *cb, void *data);
+int config_dir_load(const char *path, config_cb_t *cb, void *data);
 
 #endif /* CONFIG_H */

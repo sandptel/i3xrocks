@@ -116,7 +116,7 @@ static int config_read(struct config *conf, int fd)
 	return config_finalize(conf);
 }
 
-static int config_open(struct config *conf, const char *path)
+static int config_open(struct config *conf, const char *path, const bool single_mode)
 {
 	size_t plen = strlen(path);
 	char pname[plen + 1];
@@ -143,7 +143,7 @@ static int config_open(struct config *conf, const char *path)
 	err = config_read(conf, fd);
 	sys_close(fd);
 
-	if (conf->global)
+	if (single_mode && conf->global)
 		map_destroy(conf->global);
 
 	return err;
@@ -164,7 +164,7 @@ int config_load(const char *path, config_cb_t *cb, void *data)
 
 	/* command line config file? */
 	if (path)
-		return config_open(&conf, path);
+		return config_open(&conf, path, true);
 
 	/* user config file? */
 	if (home) {
@@ -172,12 +172,12 @@ int config_load(const char *path, config_cb_t *cb, void *data)
 			snprintf(buf, sizeof(buf), "%s/i3xrocks/config", xdg_home);
 		else
 			snprintf(buf, sizeof(buf), "%s/.config/i3xrocks/config", home);
-		err = config_open(&conf, buf);
+		err = config_open(&conf, buf, true);
 		if (err != -ENOENT)
 			return err;
 
 		snprintf(buf, sizeof(buf), "%s/.i3xrocks.conf", home);
-		err = config_open(&conf, buf);
+		err = config_open(&conf, buf, true);
 		if (err != -ENOENT)
 			return err;
 	}
@@ -187,12 +187,12 @@ int config_load(const char *path, config_cb_t *cb, void *data)
 		snprintf(buf, sizeof(buf), "%s/i3xrocks/config", xdg_dirs);
 	else
 		snprintf(buf, sizeof(buf), "%s/xdg/i3xrocks/config", SYSCONFDIR);
-	err = config_open(&conf, buf);
+	err = config_open(&conf, buf, true);
 	if (err != -ENOENT)
 		return err;
 
 	snprintf(buf, sizeof(buf), "%s/i3xrocks.conf", SYSCONFDIR);
-	return config_open(&conf, buf);
+	return config_open(&conf, buf, true);
 }
 
 int config_dir_load(const char *path, config_cb_t *cb, void *data)
@@ -201,31 +201,35 @@ int config_dir_load(const char *path, config_cb_t *cb, void *data)
 		.data = data,
 		.cb = cb,
 	};
+
 	char buf[PATH_MAX];
-	int err;
+	struct dirent **namelist;
+	int n, err, retval = 0;
 
-	DIR *folder;
-    struct dirent *entry;
-    int files = 0;
+	n = scandir(path, &namelist, NULL, alphasort);
+	if (n < 0) {
+		perror("scandir");
+		retval = -1;
+	} else {
+		for (int i=0; i < n; i++) {			
+			char *conf_file = namelist[i]->d_name;
+			if (strcmp(conf_file, ".") != 0 && strcmp(conf_file, "..") != 0) {
+				snprintf(buf, sizeof(buf), "%s/%s", path, conf_file);
+				debug("Reading config file %s\n", buf);
+				err = config_open(&conf, buf, false);
 
-    folder = opendir(path);
-    if(folder == NULL)
-    {
-        perror("Unable to read directory");
-        return(1);
-    }
+				if (err) {
+					error("failed to load config file %s", conf_file);
+					return err;
+				}
+			}
+			free(namelist[i]);
+		}
+		free(namelist);
+	}
 
-    while( (entry=readdir(folder)) )
-    {
-        files++;
-        printf("File %3d: %s, %d\n",
-                files,
-                entry->d_name,
-                entry->d_type
-              );
-    }
+	if (conf.global)
+		map_destroy(conf.global);
 
-    closedir(folder);
-
-    return 1;
+    return retval;
 }
