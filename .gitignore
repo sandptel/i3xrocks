@@ -12,3 +12,4 @@ configure
 i3xrocks-config.h*
 stamp-h1
 
+debian/files
