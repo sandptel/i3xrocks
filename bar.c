@@ -466,7 +466,8 @@ static void bar_load(struct bar *bar, const char *path, const char *conf_dir, co
 			err = config_dir_load(user_conf_dir, bar_config_cb, bar);
 		}
 
-		if ((err && user_conf_dir && conf_dir) || conf_dir) {
+		// If attempt at user conf failed and have system conf, or only have system conf:
+		if ((err && user_conf_dir && conf_dir) || (conf_dir && !user_conf_dir)) {
 			debug("Loading config from directory %s", conf_dir);
 			err = config_dir_load(conf_dir, bar_config_cb, bar);
 		}

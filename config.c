@@ -208,7 +208,7 @@ int config_dir_load(const char *path, config_cb_t *cb, void *data)
 
 	n = scandir(path, &namelist, NULL, alphasort);
 	if (n < 0) {
-		perror("scandir");
+		perror(path);
 		retval = -1;
 	} else {
 		for (int i=0; i < n; i++) {			
