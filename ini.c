@@ -54,8 +54,7 @@ static int ini_property(struct ini *ini, char *key, char *value)
 		}
 
 		// Add null terminator before default value for comparisons.
-		char *default_value;
-		default_value = strchr(value, ' ');
+		char *default_value = strchr(value, ' ');
 		if (default_value) {
 			if (*(default_value + 1) != '\0') {
 				default_value++;
