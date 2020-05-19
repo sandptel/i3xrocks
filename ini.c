@@ -53,7 +53,8 @@ static int ini_property(struct ini *ini, char *key, char *value)
 			return -EINVAL;
 		}
 
-		// Add null terminator before default value for comparisons.
+		// Add null terminator so that xcb_xrm_resource_get_string knows where to stop.
+		int buffer_size = strlen(value);
 		char *default_value = strchr(value, ' ');
 		if (default_value) {
 			if (*(default_value + 1) != '\0') {
@@ -64,12 +65,9 @@ static int ini_property(struct ini *ini, char *key, char *value)
 
 		char *resource;
 		if (xcb_xrm_resource_get_string(ini->database, value + strlen("xresource:"), NULL, &resource) == 0) {
-			if (default_value) {
-				default_value[-1] = ' ';
-			}
-			value = resource;
+			strncpy(value, resource, buffer_size);
+			free(resource);
 		} else if (strlen(default_value) > 0) {
-			default_value[-1] = ' ';
 			value = default_value;
 		} else {
 			fatal("invalid Xresource key: \"%s\"", value);
