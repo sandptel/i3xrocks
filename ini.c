@@ -65,8 +65,9 @@ static int ini_property(struct ini *ini, char *key, char *value)
 
 		char *resource;
 		if (xcb_xrm_resource_get_string(ini->database, value + strlen("xresource:"), NULL, &resource) == 0) {
-			strncpy(value, resource, buffer_size);
+			int ret = ini->prop_cb(key, resource, ini->data);
 			free(resource);
+			return ret;
 		} else if (strlen(default_value) > 0) {
 			value = default_value;
 		} else {
