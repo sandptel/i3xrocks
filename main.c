@@ -60,7 +60,7 @@ int main(int argc, char *argv[])
 			printf("Usage: %s [-c <configfile>] [-d <conf.d dir>] [-u <conf.d dir>] [-o <output>] [-v] [-h] [-V]\n", argv[0]);
 			return EXIT_SUCCESS;
 		case 'V':
-			printf(PACKAGE_STRING " © 2020 Ken Gilmer\n");
+			printf(PACKAGE_STRING " © 2020 - 2021 Ken Gilmer\n");
 			return EXIT_SUCCESS;
 		default:
 			error("Try '%s -h' for more information.", argv[0]);

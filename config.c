@@ -195,7 +195,7 @@ int config_load(const char *path, config_cb_t *cb, void *data)
 	return config_open(&conf, buf, true);
 }
 
-int config_dir_load(const char *path, config_cb_t *cb, void *data)
+int config_dir_load(const char *path, config_cb_t *cb, void *data, const bool quiet)
 {
 	struct config conf = {
 		.data = data,
@@ -208,7 +208,7 @@ int config_dir_load(const char *path, config_cb_t *cb, void *data)
 
 	n = scandir(path, &namelist, NULL, alphasort);
 	if (n < 0) {
-		perror(path);
+		if (!quiet) perror(path);
 		retval = -1;
 	} else {
 		for (int i=0; i < n; i++) {			
